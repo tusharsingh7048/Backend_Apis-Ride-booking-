@@ -1,0 +1,293 @@
+==========================
+🚀 TAXI BOOKING API TEST CASES
+==========================
+
+✅ 1) POST /auth/send-otp
+---------------------------------
+✅ Valid mobile number
+✅ Invalid mobile number (e.g., too short, wrong format)
+✅ Missing mobile number
+✅ Send OTP for an existing user with no role
+✅ Send OTP with role: driver
+✅ Send OTP with role: passenger
+
+✅ 2) POST /auth/verify-otp
+---------------------------------
+✅ Valid OTP, correct mobile
+✅ Invalid OTP
+✅ Expired OTP
+✅ Missing OTP
+✅ Missing mobile
+✅ User without OTP saved
+✅ User with OTP but wrong format mobile
+
+✅ 3) POST /auth/login
+---------------------------------
+✅ Valid mobile and correct password
+✅ Valid mobile but wrong password
+✅ Valid mobile but no password set (force error)
+✅ Invalid mobile
+✅ Missing mobile or password
+
+✅ 4) POST /auth/forgot-password
+---------------------------------
+✅ Valid mobile, user exists
+✅ Invalid mobile format
+✅ Mobile not found in DB
+✅ Missing mobile
+
+✅ 5) POST /auth/reset-password
+---------------------------------
+✅ Valid mobile, valid OTP, valid new password
+✅ Valid mobile, invalid OTP
+✅ Expired OTP
+✅ Missing mobile, OTP or newPassword
+✅ New password too short
+
+✅ 6) POST /rides/search
+---------------------------------
+✅ Valid pickup, drop, rideTime
+✅ Missing pickup
+✅ Missing drop
+✅ Missing rideTime
+✅ Invalid rideTime format
+
+✅ 7) GET /rides/available
+---------------------------------
+✅ Valid pickup, drop, rideTime matches
+✅ Valid pickup/drop but no rides match
+✅ rideTime with wrong format (CastError)
+✅ rideTime outside available range
+✅ Missing pickup/drop/rideTime
+
+✅ 8) POST /rides/request
+---------------------------------
+✅ Valid rideId, valid passenger JWT
+✅ Invalid rideId
+✅ Missing rideId
+✅ Ride doesn’t exist
+✅ Using driver token instead of passenger (role check)
+✅ Same passenger requests same ride again
+
+✅ 9) POST /rides/verify-ride-otp
+---------------------------------
+✅ Valid rideId, valid OTP, driver owns ride
+✅ Valid rideId, wrong OTP
+✅ Valid rideId, but driver does not own ride
+✅ Valid OTP but ride in wrong status
+✅ Missing rideId or OTP
+✅ Using passenger JWT instead of driver
+
+✅ 10) POST /rides/cancel
+---------------------------------
+✅ Valid rideRequestId, valid passenger JWT
+✅ Missing rideRequestId
+✅ Invalid rideRequestId
+✅ Passenger tries to cancel someone else’s request
+✅ Using driver JWT instead of passenger
+✅ Cancel with reason field
+✅ Cancel with missing reason field
+
+==========================
+📌 GENERAL HEADERS:
+- For protected routes: Add header `x-auth-token` with valid JWT for the role.
+- Always test: expired or invalid token → expect 401.
+==========================
+
+✅ Done!
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---------------------------------------------------------
+
+==========================
+🚖 TAXI BOOKING BACKEND — COMPLETE FLOW TEST PLAN
+==========================
+
+This covers:
+✅ Auth: OTP, login, reset
+✅ Rides: Search, Available, Request, Verify OTP, Cancel
+✅ Manual DB steps for now (no /createRide yet)
+
+Use these steps IN ORDER during testing!
+
+==========================
+🗂️ DB: taxiBookingDB
+Collections:
+  - users
+  - rides
+  - rideRequests
+==========================
+
+✅ STEP 1️⃣: CREATE USERS MANUALLY
+---------------------------------
+
+a) Create a DRIVER:
+--------------------
+Run in Mongo shell:
+db.users.insertOne({
+  name: "Test Driver",
+  mobile: "8888888888",
+  password: "$2b$10$1Dp6jQrWQTYXrnMu5HE.zOwr.rxQfInyHutvT/XcQDuziuo6i0CVK", // bcrypt for 'password'
+  role: "driver",
+  otp: null,
+  otpExpiresAt: null,
+  createdAt: new Date()
+})
+
+b) Create a PASSENGER:
+--------------------
+db.users.insertOne({
+  name: "Test Passenger",
+  mobile: "9999999999",
+  password: "$2b$10$XB5N340P7a4vKsmUgPZ2DOScB0yt7N3tTjhp6oEXEsYuQYAOoK.vW", // bcrypt for 'password'
+  role: "passenger",
+  otp: null,
+  otpExpiresAt: null,
+  createdAt: new Date()
+})
+
+c) Confirm:
+--------------------
+db.users.find().pretty()
+
+✅ Save the driver’s `_id` for step 2.
+
+==========================
+✅ STEP 2️⃣: CREATE DUMMY RIDE
+---------------------------------
+
+Insert a ride with driverId from step 1:
+db.rides.insertOne({
+  driverId: ObjectId("YOUR_DRIVER_ID"),
+  pickup: "Location A",
+  drop: "Location B",
+  rideTime: ISODate("2025-07-07T10:00:00Z"),
+  status: "available",
+  startOtp: "654321"
+})
+
+✅ Confirm:
+db.rides.find().pretty()
+
+==========================
+✅ STEP 3️⃣: PASSENGER SENDS OTP & VERIFIES (FOR LOGIN)
+---------------------------------
+🔹 POST /api/auth/send-otp
+Body: { "mobile": "9999999999" }
+
+🔹 POST /api/auth/verify-otp
+Body: { "mobile": "9999999999", "otp": "<otp from console>" }
+
+✅ Copy the token for passenger — you’ll use this for `/request`.
+
+==========================
+✅ STEP 4️⃣: DRIVER LOGIN (OPTIONAL)
+---------------------------------
+🔹 POST /api/auth/login
+Body: { "mobile": "8888888888", "password": "password" }
+
+✅ Copy the driver token — you’ll use this for `/verify-ride-otp`.
+
+==========================
+✅ STEP 5️⃣: PASSENGER SEARCHES & GETS AVAILABLE RIDES
+---------------------------------
+
+🔹 POST /api/rides/search
+Body: { "pickup": "Location A", "drop": "Location B", "rideTime": "2025-07-07T10:00:00Z" }
+
+🔹 GET /api/rides/available
+Query: ?pickup=Location A&drop=Location B&rideTime=2025-07-07T10:00:00Z
+
+✅ Confirm you see your dummy ride.
+✅ Save rideId for request.
+
+==========================
+✅ STEP 6️⃣: PASSENGER SENDS REQUEST TO JOIN RIDE
+---------------------------------
+🔹 POST /api/rides/request
+Headers: x-auth-token: <Passenger JWT>
+Body: { "rideId": "YOUR_RIDE_ID" }
+
+✅ Confirm response: success true.
+✅ Check in DB:
+db.rideRequests.find().pretty()
+
+==========================
+✅ STEP 7️⃣: DRIVER VERIFIES START OTP
+---------------------------------
+🔹 POST /api/rides/verify-ride-otp
+Headers: x-auth-token: <Driver JWT>
+Body:
+{
+  "rideId": "YOUR_RIDE_ID",
+  "otp": "654321"
+}
+
+✅ For testing, your ride status should be 'available' or manually updated to 'scheduled' if your verify logic only allows that.
+
+✅ After success: status moves to 'active', startOtp cleared.
+
+==========================
+✅ STEP 8️⃣: PASSENGER CANCELS REQUEST (OPTIONAL)
+---------------------------------
+🔹 POST /api/rides/cancel
+Headers: x-auth-token: <Passenger JWT>
+Body:
+{
+  "rideRequestId": "YOUR_REQUEST_ID",
+  "reason": "Change of plan"
+}
+
+✅ Confirm status in DB:
+db.rideRequests.find().pretty()
+
+==========================
+✅ GENERAL HEADERS
+---------------------------------
+Always use:
+- Header: x-auth-token: <your JWT> for protected routes.
+- If no token, should return 401.
+- Wrong role? Should return 403.
+
+==========================
+✅ EDGE CASES FOR EACH ENDPOINT
+---------------------------------
+✅ For each API test:
+ - Missing fields
+ - Invalid formats (mobile, OTP)
+ - Invalid token
+ - Expired OTP
+ - Non-existent IDs
+ - Wrong role tries to access
+ - Happy path always!
+
+==========================
+🎉 DONE!
+You now have a full manual flow for all your 10 APIs until you build `/createRide` for real driver ride creation.
+==========================
